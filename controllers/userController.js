@@ -1,15 +1,10 @@
 const users = require("../models/userSchema");
-const userotp = require("../models/userOtp");
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const keysecret = "abcdefghijklmnop" ;
-const PackageCategory = require("../models/packageCategorySchema");
-const PackageItem = require("../models/packageItem");
-const customeitem = require("../models/customeItemsSchema");
-const Order = require("../models/OrderSchema");
-const { json } = require("body-parser");
+const products=require("../models/productsModel")
 const { ObjectId } = require("mongoose");
+const createError = require('../middleware/errorHandling');
+const { validationResult } = require('express-validator');
 
 let fnamee;
 let emaill;
@@ -21,12 +16,16 @@ let sendOtp;
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "harsendraraj20@gmail.com",
-    pass: "ukiovyhquvazeomy",
+    user:process.env.EMAILUSER,
+    pass:process.env.EMAILPASSWORD,
   },
 });
 
-exports.userregister = async (req, res) => {
+exports.userregister = async (req, res,next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
   const { fname, email, mobile, password } = req.body;
 
   if (!fname || !email || !mobile || !password) {
@@ -37,9 +36,7 @@ exports.userregister = async (req, res) => {
     const preuser = await users.findOne({ email: email });
 
     if (preuser) {
-      return res
-        .status(400)
-        .json({ error: "This user already exists in our database" });
+        return next(createError(400, "This user already exists in our database"));
     } else {
       fnamee = fname;
       emaill = email;
@@ -49,7 +46,7 @@ exports.userregister = async (req, res) => {
       const OTP = Math.floor(100000 + Math.random() * 900000);
       sendOtp = OTP;
       const mailOption = {
-        from: "harsendraraj20@gmail.com",
+        from:process.env.EMAILUSER,
         to: email,
         subject: "Sending Email For Otp signup",
         text: `OTP:- ${OTP}`,
@@ -57,23 +54,21 @@ exports.userregister = async (req, res) => {
 
       transporter.sendMail(mailOption, (error, info) => {
         if (error) {
-          console.log("error", error);
-          return res.status(400).json({ error: "Email Not Send" });
+          return next(createError(400, "Email Not Send"));
         } else {
-          console.log("Email Send", info.response);
           return res.status(200).json({ message: "Email send Successfully" });
         }
       });
     }
   } catch (error) {
-    return res.status(400).json({ error: "Invalid Details", error });
+    next(error)
   }
 };
 
-exports.registerotp = async (req, res) => {
+exports.registerotp = async (req, res,next) => {
   const { otp } = req.body;
   if (!otp) {
-    return res.status(400).json({ error: "Please Enter Otp" });
+    return next(createError(400, "Please Enter otp"));
   }
   try {
     if (otp == sendOtp) {
@@ -87,662 +82,202 @@ exports.registerotp = async (req, res) => {
       // Here password hashing
 
       const storeData = await userregister.save();
-      return res.status(200).json(storeData);
+      return res.status(200).json({message:"User Signup successfully"});
     } else {
-      return res.status(400).json({ error: "Invalid Otp" });
+      return next(createError(400, "Invalid Otp"));
     }
   } catch (error) {
-    return res.status(400).json({ error: "Invalid Details", error });
+   next(error)
   }
 };
 
-//user send otp
-exports.userOtpSend = async (req, res) => {
+
+exports.userlogin = async (req, res, next) => {
   const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res
-      .status(400)
-      .json({ error: "Please Enter Your Email and Password" });
-  }
-
-  try {
-    const preuser = await users.findOne({ email: email });
-
-    if (preuser) {
-      const passwordMatch = await bcrypt.compare(password, preuser.password);
-      if (passwordMatch) {
-        if (!preuser.block) {
-        //   const OTP = Math.floor(100000 + Math.random() * 900000);
-
-        //   const existEmail = await userotp.findOne({ email: email });
-        //   if (existEmail) {
-        //     const updateDate = await userotp.findByIdAndUpdate(
-        //       { _id: existEmail._id },
-        //       {
-        //         otp: OTP,
-        //       },
-        //       { new: true }
-        //     );
-        //     await updateDate.save();
-        //     const mailOption = {
-        //       from: "harsendraraj20@gmail.com",
-        //       to: email,
-        //       subject: "Sending Email For Otp Validation",
-        //       text: `OTP:- ${OTP}`,
-        //     };
-
-        //     transporter.sendMail(mailOption, (error, info) => {
-        //       if (error) {
-        //         console.log("error", error);
-        //         return res.status(400).json({ error: "Email Not Send" });
-        //       } else {
-        //         console.log("Email Send", info.response);
-        //         return res
-        //           .status(200)
-        //           .json({ message: "Email send Successfully" });
-        //       }
-        //     });
-        //   } else {
-        //     const saveOtpData = new userotp({
-        //       email,
-        //       otp: OTP,
-        //     });
-        //     await saveOtpData.save();
-
-        //     const mailOption = {
-        //       from: "harsendraraj20@gmail.com",
-        //       to: email,
-        //       subject: "Sending Email For Otp Validation",
-        //       text: `OTP:- ${OTP}`,
-        //     };
-
-        //     transporter.sendMail(mailOption, (error, info) => {
-        //       if (error) {
-        //         console.log("error", error);
-        //         return res.status(400).json({ error: "Email Not Send" });
-        //       } else {
-        //         console.log("Email Send", info.response);
-        //         return res
-        //           .status(200)
-        //           .json({ message: "Email send Successfully" });
-        //       }
-        //     });
-        //   }
-        // }
-
-        const token = await preuser.generateAuthtoken();
-      return res
-        .status(200)
-        .json({ message: "User Login Succesfully Done", userToken: token });
-              
-      } else {
-        return res.status(400).json({ error: "Please Enter Valid Password" });
-      }
-    } else {
-      return res
-        .status(400)
-        .json({ error: "This User Not Exist In our Database" });
-    }
-    if (preuser.block) {
-      return res.status(400).json({
-        error: "Your account is blocked.Please contact customer care",
-      });
-    }
-  }
-  } catch (error) {
-    return res.status(400).json({ error: "Invalid Details", error });
-  }
-};
-
-exports.userLogin = async (req, res) => {
-  const { email, otp } = req.body;
-  if (!otp || !email) {
-    return res.status(400).json({ error: "Please Enter Your OTP and email" });
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array()});
   }
   try {
-    const otpverification = await userotp.findOne({ email: email });
+    const user = await users.findOne({ email });
 
-    if (otpverification.otp === otp) {
-      const preuser = await users.findOne({ email: email });
-
-      // Token generation
-
-      const token = await preuser.generateAuthtoken();
-      return res
-        .status(200)
-        .json({ message: "User Login Succesfully Done", userToken: token });
-    } else {
-      return res.status(400).json({ error: "Invalid Otp " });
+    if (!user) {
+      return next(createError(400, "This user does not exist in our database"));
     }
-  } catch (error) {
-    return res
-      .status(400)
-      .json({ error: "Invalid Details", error: error.message });
-  }
-};
-
-exports.usergoogleLogin = async (req, res) => {
-  const { fname, mobile, password, email } = req.body;
-  if (!fname || !mobile || !password || !email) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  try {
-    const preuser = await users.findOne({ email: email });
-    if (preuser) {
-      const passwordMatch = await bcrypt.compare(password, preuser.password);
-      if (passwordMatch) {
-        const token = await preuser.generateAuthtoken();
-
-        return res
-          .status(200)
-          .json({ message: "User Login Successfully Done", userToken: token });
-      }
-    }
-
-    // Here password hashing
-
-    const userregister = new users({
-      fname: fname,
-      email: email,
-      mobile: mobile,
-      password: password,
-    });
-
-    const storeData = await userregister.save();
-    if (storeData) {
-      return res.status(200).json({ message: "User Login Successfully Done" });
-    }
-  } catch (error) {
-    return res
-      .status(400)
-      .json({ error: "Invalid Details", errorMessage: error.message });
-  }
-};
-
-exports.sendpasswordlink = async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(401).json({ status: 401, message: "Enter your Email" });
-  }
-  try {
-    const userfind = await users.findOne({ email: email });
-
-    //token generate for reset password
-
-    const token = jwt.sign({ _id: userfind._id }, keysecret, {
-      expiresIn: "120s",
-    });
-
-    const setusertoken = await users.findByIdAndUpdate(
-      { _id: userfind._id },
-      { verifytoken: token },
-      { new: true }
-    );
-    if (setusertoken) {
-      const mailOption = {
-        from:"harsendraraj20@gmail.com",
-        to: email,
-        subject: "Sending Email from Password Reset",
-        text: `This Link Valid For 2 MINITES https://caterninja.netlify.app/user/forgetpassword/${userfind.id}/${setusertoken.verifytoken}`,
-      };
-
-      transporter.sendMail(mailOption, (error, info) => {
-        if (error) {
-          console.log("error", error);
-          return res.status(400).json({ error: "Email Not Send" });
-        } else {
-          return res.status(201).json({ message: "Email send Successfully" });
-        }
-      });
-    }
-  } catch (error) {
-    return res
-      .status(400)
-      .json({ error: "Invalid Details", errorMessage: error.message });
-  }
-};
-
-exports.forgetpasswordotp = async (req, res) => {
-  const { id, token } = req.params;
-  try {
-    const valideuser = await users.findOne({ _id: id, verifytoken: token });
-
-    const verifyToken = jwt.verify(token, keysecret);
-
-    if (valideuser && verifyToken._id) {
-      return res.status(201).json({ status: 201, valideuser });
-    } else {
-      return res.status(401).json({ status: 401, message: "user not exist" });
-    }
-  } catch (error) {
-    return res
-      .status(400)
-      .json({ error: "Invalid Details", errorMessage: error.message });
-  }
-};
-
-exports.forgetpasswordtoken = async (req, res) => {
-  const { id, token } = req.params;
-
-  const { password } = req.body;
-  console.log("password changeing now");
-  console.log("new password", password);
-  try {
-    const valideuser = await users.findOne({ _id: id, verifytoken: token });
-
-    const verifyToken = jwt.verify(token, keysecret);
-
-    if (valideuser && verifyToken._id) {
-      const newpass = await bcrypt.hash(password, 12);
-
-      const setNewuser = await users.findByIdAndUpdate(
-        { _id: id },
-        { password: newpass }
-      );
-
-      setNewuser.save();
-      return res.status(201).json({ status: 201, setNewuser });
-    } else {
-      return res.status(401).json({ status: 401, message: "user not exist" });
-    }
-  } catch (error) {}
-};
-
-exports.getninjaboxpackage = async (req, res) => {
-  try {
-    const categoryId = "649a8dbe388ed76ea11b2bcc";
-
-    const data = await PackageItem.find({ category: categoryId }).populate(
-      "category"
-    );
-
-    if (data) {
-      return res.status(200).send(data);
-    }
-  } catch (error) {
-    return res
-      .status(401)
-      .json({ status: 401, message: "User does not exist" });
-  }
-};
-
-exports.getninjabuffetpackage = async (req, res) => {
-  try {
-    const data = await PackageItem.find({});
-
-    if (data) {
-      return res.status(200).send(data);
-    }
-  } catch (error) {
-    return res
-      .status(401)
-      .json({ status: 401, message: "User does not exist" });
-  }
-};
-
-exports.getCustomeItem = async (req, res) => {
-  try {
-    const data = await customeitem.find({});
-    if (data) {
-      return res.status(200).send(data);
-    } else {
-      return res.status(404).json({ status: 404, message: "Data not found" });
-    }
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ status: 500, message: "Internal server error" });
-  }
-};
-
-exports.getpackageitems = async (req, res) => {
-  const { id } = req.body;
-  try {
-    const data = await PackageItem.findById(id);
-    if (data) {
-      return res.status(200).send(data);
-    }
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ status: 500, message: "Internal server error" });
-  }
-};
-
-exports.getpackagecategory = async (req, res) => {
-  try {
-    const data = await PackageCategory.find({});
-    if (data) {
-      return res.status(200).send(data);
-    }
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ status: 500, message: "Internal server error" });
-  }
-};
-
-exports.geuserprofiledata = async (req, res) => {
-  try {
-    const { id } = req.body;
-    const data = await users.findById(id);
-    if (data) {
-      return res.status(200).send(data);
-    }
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ status: 500, message: "Internal server error" });
-  }
-};
-
-exports.addAddress = async (req, res) => {
-  try {
-    const { country, address, city, state, postcode, phone, email, id } =
-      req.body;
-    if (
-      !country ||
-      !address ||
-      !city ||
-      !state ||
-      !postcode ||
-      !phone ||
-      !email ||
-      !id
-    ) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const updatedUser = await users.findByIdAndUpdate(id, {
-      $push: {
-        Address: {
-          country,
-          address,
-          city,
-          state,
-          postcode,
-          phone,
-          email,
-        },
-      },
-    });
-
-    if (updatedUser) {
-      return res.status(200).json({ message: "Address added successfully" });
-    } else {
-      return res.status(404).json({ error: "User not found" });
-    }
-  } catch (error) {
-    console.error("Error:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.getaddress = async (req, res) => {
-  try {
-    const { id } = req.body;
-    const data = await users.findById(id);
-    if (data) {
-      return res.status(200).send(data);
-    }
-  } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.deleteaddress = async (req, res) => {
-  try {
-    const { id, userId } = req.body;
-    const updateResult = await users.updateOne(
-      {
-        _id: userId,
-        "Address._id": id,
-      },
-      {
-        $pull: {
-          Address: { _id: id },
-        },
-      }
-    );
-    if (updateResult) {
-      return res.status(200).json({ message: "Address Delete successfully" });
-    }
-  } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.getEditAddress = async (req, res) => {
-  try {
-    const { id } = req.body;
-    const data = await users.findOne(
-      { Address: { $elemMatch: { _id: id } } },
-      { "Address.$": 1, _id: 0 }
-    );
-    if (data) {
-      return res.status(200).send(data);
-    }
-  } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.EditAddress = async (req, res) => {
-  try {
-    const { userId, country, address, city, state, postcode, phone, id } =
-      req.body;
-    if (
-      !userId ||
-      !country ||
-      !address ||
-      !city ||
-      !state ||
-      !postcode ||
-      !phone ||
-      !id
-    ) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const updateResult = await users.updateOne(
-      {
-        _id: userId,
-        "Address._id": id,
-      },
-      {
-        $set: {
-          "Address.$.country": country,
-          "Address.$.address": address,
-          "Address.$.city": city,
-          "Address.$.state": state,
-          "Address.$.postcode": postcode,
-          "Address.$.phone": phone,
-        },
-      }
-    );
-
-    if (updateResult) {
-      return res.status(200).json({ message: "Address edited successfully" });
-    } else {
-      return res
-        .status(400)
-        .json({ error: "Address not found or no changes made" });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.OrderItem = async (req, res) => {
-  try {
-    const { combinedData, grandtotal, data, useDetails } = req.body;
-    const result = Math.random().toString(36).substring(2, 7);
-    const id = Math.floor(100000 + Math.random() * 900000);
-    const orderId = result + id;
-
-    const organiproduct = Object.values(combinedData).flatMap((array) =>
-      array.map((item) => ({
-        id: item._id,
-        name: item.name,
-        price: item.price,
-        quantity: item.count,
-        foodType: item.foodType,
-        Nonveg: item.Nonveg,
-        img: item.img,
-      }))
-    );
-
-    
-    if (organiproduct.length === 0) {
-      return res.status(400).json({ error: "No products in the order" });
-    }
-
-  
-    const timeString = useDetails.times.join(', ');
-
-    let orderData = {
-      userId: data.userId,
-      product: organiproduct,
-      orderId: orderId,
-      date: useDetails.selectedDate,
-      foodType: organiproduct[0].foodType, 
-      status: "processing",
-      address: useDetails.orderAddress,
-      time: timeString, 
-      subtotal: grandtotal / 2,
-      veguest: useDetails.vegguest,
-      latitude: useDetails.latitude,
-      longitude: useDetails.longitude,
-      Nonvegguest: useDetails.Nonvegguest,
-    };
-
-    const orderPlacement = await Order.create([orderData]); 
-
-    console.log(orderPlacement);
-
-    if (orderPlacement) {
-      return res
-        .status(200)
-        .json({ success: true, message: "Order placed successfully" });
-    } else {
-      return res.status(500).json({ error: "Failed to place the order" });
-    }
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.addcustomepageaddress = async (req, res) => {
-  try {
-    const { country, address, city, state, postcode, phone, email, id } =
-      req.body;
-    if (
-      !country ||
-      !address ||
-      !city ||
-      !state ||
-      !postcode ||
-      !phone ||
-      !email ||
-      !id
-    ) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const updatedUser = await users.findByIdAndUpdate(id, {
-      $push: {
-        Address: {
-          country,
-          address,
-          city,
-          state,
-          postcode,
-          phone,
-          email,
-        },
-      },
-    });
-
-    if (updatedUser) {
-      return res.status(200).json({ message: "Address added successfully" });
-    } else {
-      return res.status(404).json({ error: "User not found" });
-    }
-  } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.getordereddetails = async (req, res) => {
-  try {
-    const { id } = req.body;
-    const data = await Order.find({ userId: id });
-
-    // Sort the data based on the date in descending order
-    data.sort((a, b) => b.date - a.date);
-
    
 
-    if (data.length > 0) {
-      return res.status(200).json(data);
-    } else {
-      return res.status(404).json({ error: "Data not found" });
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return next(createError(400, "Please enter a valid password"));
     }
+
+    const token = await user.generateAuthtoken();
+    return res.status(200).json({ message: "User login successful", userToken: token });
   } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
+    next(error);
   }
 };
 
 
-exports.cancleOrder = async (req, res) => {
+
+exports.additemslist = async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { title, description } = req.body;
   try {
-    const { id } = req.body;
+    if (!title || !description) {
+      return next(createError(400, "Please Enter All Input Data"));
+    }
 
-    const data = await Order.findById(id);
-    if (data.status === "processing") {
-      const setusertoken = await Order.findByIdAndUpdate(
-        id,
-        {
-          status: "Cancle Order",
-        },
-        { new: true }
-      );
+    const existingProduct = await products.findOne({ title });
+    if (existingProduct) {
+      return next(createError(400, "Product already exists"));
+    }
 
-      if (setusertoken) {
-        return res.status(200).json({ message: "Status changed successfully" });
-      }
-    } else if (data.status === "Order Confirm") {
-      const setusertoken = await Order.findByIdAndUpdate(
-        id,
-        {
-          status: "Cancle Order",     
-        },
-        { new: true }
-      );
+    const newProduct = new products({
+      title,
+      description,
+      dateCreated:new Date() 
+    });
 
-      if (setusertoken) {
-        return res.status(200).json({ message: "Status changed successfully" });
-      }
+    const savedProduct = await newProduct.save();
+    if (savedProduct) {
+      return res.status(200).json({ message: "Product Added Successfully" });
+    } else {
+      return next(createError(400, "Something went wrong"));
     }
   } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
+    next(error);
   }
-};
-
-
-exports.getviewOrder=async(req,res)=>{
-  try{
-    const {id}=req.body;
-
-const data=await Order.findById(id)
-if(data){
-  return res.status(200).json(data);
 }
+
+
+exports.getProduct=async(req,res,next)=>{
+  try{
+
+    let data=await products.find({});
+    if(data){
+      return res.status(200).json(data);
+    }
+
   }catch(error){
-    return res.status(500).json({ error: "Internal server error" });
+    next(error);
+  }
+}
+
+exports.getsingleproduct = async (req, res, next) => {
+  const { id } = req.params; 
+
+  try {
+    const product = await products.findById(id);
+    if (product) {
+      return res.status(200).json(product);
+    } else {
+      return next(createError(404, "This product does not exist in our database"));
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
+exports.deleteproducts=async(req,res,next)=>{
+  const {id}=req.params;
+try{
+
+  const deletedDocument = await products.findByIdAndDelete(id);
+    if (deletedDocument) {
+      return res.status(200).json({ message: "Product deleted successfully" });
+    } else {
+      return next(createError(404, "Document not found"));
+    }
+
+}catch(error){
+  next(error);
+}
+}
+
+
+
+exports.editproduct = async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { title, description, id } = req.body;
+  try {
+    let data = await products.findById(id);
+    if (!data) {
+      return next(createError(404, "Product not found"));
+    }
+
+
+    const updation = {
+      title,
+      description,
+      updatedDate: new Date() 
+    };
+
+    const updatedProduct = await products.findByIdAndUpdate(id, updation, { new: true });
+    if (updatedProduct) {
+      return res.status(200).json({ message: "Product Updated Successfully", updatedProduct });
+    } else {
+      return next(createError(404, "No changes were made"));
+    }
+  } catch (error) {
+    next(error);
+  }
+}
+
+
+exports.statusupdate=async(req,res,next)=>{
+  const {id}=req.body;
+  try{
+    if(!id){
+      return next(createError(404, "Please provide product ID"));
+    }
+    const Data = await products.findOne({ _id:id});
+    if(!Data){
+      return next(createError(404, "Product not found"));
+    }
+    if (Data.status === "processing") {
+      const delivery = await products.findOneAndUpdate(
+        { _id:id},
+        {
+          $set: {
+            status: "Shipped",
+            updatedDate: new Date() 
+          },
+        }
+      );
+    } else if (Data.status === "Shipped") {
+      const delivery = await products.findOneAndUpdate(
+        { _id:id},
+        {
+          $set: {
+            status: "Out of Delivery",
+            updatedDate: new Date() 
+          },
+        }
+      );
+    } else if (Data.status === "Out of Delivery") {
+      const delivery = await products.findOneAndUpdate(
+        { _id:id},
+        {
+          $set: {
+            status: "Delivered",
+            updatedDate: new Date() 
+          },
+        }
+      );
+    }
+
+    return res.status(200).json({message:"Status updated successfully"});
+
+  }catch(error){
+    next(error);
   }
 }

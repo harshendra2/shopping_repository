@@ -3,6 +3,7 @@ const validator = require("validator");
 const bcrypt=require("bcryptjs");  
 const jwt = require("jsonwebtoken");
 const SECRET_KEY = "abcdefghijklmnop" 
+const { ObjectId } = require("mongodb");
 
 const userSchema = new mongoose.Schema({
  fname:{
@@ -28,32 +29,7 @@ const userSchema = new mongoose.Schema({
     type:String,
     require:true,
     minlength:6
- },
- tokens:[
-    {
-      token:{
-        type:String,
-        required:true,
-      }  
-    }
- ] ,
- block:{
-    type:Boolean,
-    require:true
-
-},
-verifytoken:{
-    type:String,
-    require:true,
-},
-Address: [{
-    country: { type: String, required: true },
-    address: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    postcode: { type: String, required: true },
-    phone: { type: String, required: true }
-}]
+ }
 
 })
 
@@ -72,9 +48,6 @@ try{
     let newtoken = jwt.sign({_id:this._id},SECRET_KEY,{
         expiresIn:"1d"
     })
-
-    this.tokens = this.tokens.concat({token:newtoken});
-    await this.save();
     return newtoken;
 
 }catch(error){
